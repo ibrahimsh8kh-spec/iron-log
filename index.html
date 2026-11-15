@@ -122,6 +122,15 @@ function Flame({ size = 24, color = "currentColor", style, ...rest }) {
 function Moon({ size = 24, color = "currentColor", style, ...rest }) {
   return /* @__PURE__ */ React.createElement("svg", { width: size, height: size, viewBox: "0 0 24 24", style, ...rest }, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "8", fill: color }), /* @__PURE__ */ React.createElement("circle", { cx: "16.5", cy: "8.5", r: "7", fill: "#1A1D22" }));
 }
+function ChevronUp(p) {
+  return /* @__PURE__ */ React.createElement(IconBase, { ...p }, /* @__PURE__ */ React.createElement("polyline", { points: "6,15 12,9 18,15" }));
+}
+function Trash(p) {
+  return /* @__PURE__ */ React.createElement(IconBase, { ...p }, /* @__PURE__ */ React.createElement("polyline", { points: "3,6 21,6" }), /* @__PURE__ */ React.createElement("path", { d: "M19 6l-1 14H6L5 6" }), /* @__PURE__ */ React.createElement("path", { d: "M9 6V4h6v2" }));
+}
+function ClipboardList(p) {
+  return /* @__PURE__ */ React.createElement(IconBase, { ...p }, /* @__PURE__ */ React.createElement("rect", { x: "5", y: "4", width: "14", height: "17", rx: "2" }), /* @__PURE__ */ React.createElement("line", { x1: "9", y1: "10", x2: "15", y2: "10" }), /* @__PURE__ */ React.createElement("line", { x1: "9", y1: "14", x2: "15", y2: "14" }), /* @__PURE__ */ React.createElement("line", { x1: "9", y1: "18", x2: "13", y2: "18" }));
+}
 function MiniLineChart({ data, dataKey, xKey = "date", color = "#D9A63D", height = 190 }) {
   const width = 320;
   const padL = 34, padR = 12, padT = 10, padB = 24;
@@ -134,9 +143,22 @@ function MiniLineChart({ data, dataKey, xKey = "date", color = "#D9A63D", height
   const range = max - min || 1;
   const innerW = width - padL - padR;
   const innerH = height - padT - padB;
+  const times = data.map((d) => d.rawDate ? isoToDate(d.rawDate).getTime() : null);
+  const useTime = data.length > 1 && times.every((t) => t !== null) && times[times.length - 1] > times[0];
+  const tMin = useTime ? times[0] : 0;
+  const tRange = useTime ? times[times.length - 1] - tMin : 1;
   const stepX = data.length > 1 ? innerW / (data.length - 1) : 0;
+  const dateTicks = useTime ? [0, 1, 2, 3, 4].map((i) => {
+    const dt = new Date(tMin + tRange * i / 4);
+    const longRange = tRange > 300 * 864e5;
+    return {
+      x: padL + innerW * i / 4,
+      label: dt.toLocaleDateString("en-GB", longRange ? { month: "short", year: "2-digit" } : { day: "numeric", month: "short" }),
+      anchor: i === 0 ? "start" : i === 4 ? "end" : "middle"
+    };
+  }) : [];
   const points = data.map((d, i) => ({
-    x: padL + (data.length > 1 ? i * stepX : innerW / 2),
+    x: padL + (useTime ? (times[i] - tMin) / tRange * innerW : data.length > 1 ? i * stepX : innerW / 2),
     y: padT + innerH - ((Number(d[dataKey]) || 0) - min) / range * innerH,
     label: d[xKey]
   }));
@@ -146,7 +168,9 @@ function MiniLineChart({ data, dataKey, xKey = "date", color = "#D9A63D", height
   return /* @__PURE__ */ React.createElement("svg", { viewBox: `0 0 ${width} ${height}`, width: "100%", height, preserveAspectRatio: "none", style: { display: "block" } }, tickVals.map((v, i) => {
     const y = padT + innerH - (v - min) / range * innerH;
     return /* @__PURE__ */ React.createElement("g", { key: i }, /* @__PURE__ */ React.createElement("line", { x1: padL, y1: y, x2: width - padR, y2: y, stroke: "#2C3138", strokeWidth: "1" }), /* @__PURE__ */ React.createElement("text", { x: padL - 6, y: y + 3, fontSize: "9", fill: "#666C76", textAnchor: "end", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }, Math.round(v)));
-  }), points.map(
+  }), useTime ? dateTicks.map(
+    (t, i) => /* @__PURE__ */ React.createElement("g", { key: "dt" + i }, /* @__PURE__ */ React.createElement("line", { x1: t.x, y1: padT, x2: t.x, y2: padT + innerH, stroke: "#2C3138", strokeWidth: "1", strokeDasharray: "2 3" }), /* @__PURE__ */ React.createElement("text", { x: t.x, y: height - 6, fontSize: "9.5", fill: "#666C76", textAnchor: t.anchor, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }, t.label))
+  ) : points.map(
     (p, i) => i === 0 || i === points.length - 1 || i % labelEvery === 0 ? /* @__PURE__ */ React.createElement("text", { key: i, x: p.x, y: height - 6, fontSize: "9.5", fill: "#666C76", textAnchor: "middle", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }, p.label) : null
   ), /* @__PURE__ */ React.createElement("polyline", { points: linePoints, fill: "none", stroke: color, strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round" }), points.map((p, i) => /* @__PURE__ */ React.createElement("circle", { key: i, cx: p.x, cy: p.y, r: "3", fill: color })));
 }
@@ -194,156 +218,100 @@ const C = {
 };
 const FONTS = `
 `;
-const EXERCISES = {
-  squat: { name: "Smith Machine Squat", cat: "lower", tip: "No failure \u2014 keep 1\u20133 in reserve" },
+const DEFAULT_EXERCISES = {
+  squat: { name: "Smith Machine Squat", cat: "lower", tip: "No failure — keep 1–3 in reserve" },
+  smithRdl: { name: "Smith Machine RDL", cat: "lower", tip: "Bar close to your legs, back flat. Stop where the hamstrings stretch. No failure" },
+  kbSquat: { name: "KB Squat / Split Squat", cat: "lower", tip: "Controlled reps — no need for failure" },
   hamCurl: { name: "Single-Leg Hamstring Curl", cat: "lower", tip: "Final set can hit technical failure" },
-  rdl: { name: "Romanian Deadlift", cat: "lower", tip: "No failure \u2014 controlled reps only" },
   calfRaise: { name: "Calf Raise", cat: "lower", tip: "Pause / squeeze at the top of every rep" },
   hipAbd: { name: "Hip Abduction", cat: "lower", tip: "Final set can push close to failure" },
   hipAdd: { name: "Hip Adduction", cat: "lower", tip: "Final set can push close to failure" },
-  kbSquat: { name: "KB Squat / Split Squat", cat: "lower", tip: "Controlled reps \u2014 no need for failure" },
-  inclinePress: { name: "Smith Incline Press", cat: "upper", tip: "No failure \u2014 keep 1\u20133 RIR" },
-  seatedRow: { name: "Seated Row", cat: "upper", tip: "Push/pull pairing \u2014 rest longer if needed" },
-  latPulldown: { name: "Lat Pulldown", cat: "upper", tip: "Vertical pull \u2014 controlled reps" },
-  pecFly: { name: "Cable Pec Fly", cat: "upper", tip: "Final set: full reps \u2192 partials \u2192 squeeze" },
-  lateralRaise: { name: "Lateral Raise", cat: "upper", tip: "Final set: partials or a short hold" },
-  bayesianCurl: { name: "Bayesian Curl", cat: "upper", tip: "Occasional final-set failure is fine" },
-  preacherCurl: { name: "Preacher Curl", cat: "upper", tip: "Occasional final-set failure is fine" },
+  inclinePress: { name: "Smith Incline Press", cat: "upper", tip: "No failure — keep 1–3 RIR" },
+  shoulderPress: { name: "Smith Shoulder Press", cat: "upper", tip: "Seated bench under the bar. No failure — keep 1–3 RIR" },
+  pecFly: { name: "Cable Pec Fly", cat: "upper", tip: "Stop 1–2 reps short, or finish with partials instead of true failure" },
+  lateralRaise: { name: "Lateral Raise", cat: "upper", tip: "Final set: drop set or partials to bridge the weight jump" },
   tricepsPushdown: { name: "Triceps Pushdown", cat: "upper", tip: "Can hit technical failure on final set" },
-  forearmCurl: { name: "Forearm Curl", cat: "upper", tip: "Optional \u2014 low priority", optional: true }
+  latPulldown: { name: "Lat Pulldown", cat: "upper", tip: "Neutral close grip — pull to upper chest, control the way up" },
+  singleArmRow: { name: "Single-Arm Row", cat: "upper", tip: "Slow 3-second lowering, full stretch at the bottom" },
+  rearDeltFly: { name: "Rear Delt Fly", cat: "upper", tip: "Light and high-rep — squeeze, no swinging" },
+  bayesianCurl: { name: "Bayesian Curl", cat: "upper", tip: "Occasional final-set failure is fine" },
+  hammerCurl: { name: "Hammer Curl", cat: "upper", tip: "Controlled reps — final set can go to failure" },
+  concCurl: { name: "Concentration Curl", cat: "upper", tip: "Elbow braced on your thigh. Final set can go to failure" },
+  overheadTri: { name: "Overhead Triceps Extension", cat: "upper", tip: "Deep stretch at the bottom. Final set can hit technical failure" },
+  wristCurl: { name: "Wrist Curl", cat: "upper", tip: "Full range, slow and controlled" },
+  reverseCurl: { name: "Reverse Curl", cat: "upper", tip: "Light — hits forearms and brachialis" },
+  rdl: { name: "Romanian Deadlift", cat: "lower", tip: "Old exercise, kept so your history stays visible" },
+  seatedRow: { name: "Seated Row", cat: "upper", tip: "Old exercise, kept so your history stays visible" },
+  preacherCurl: { name: "Preacher Curl", cat: "upper", tip: "Old exercise, kept so your history stays visible" },
+  forearmCurl: { name: "Forearm Curl", cat: "upper", tip: "Old exercise, kept so your history stays visible" }
 };
-const DAYS = [
+const DEFAULT_DAYS = [
   {
-    id: 1,
-    short: "Lower A",
-    name: "Lower A",
+    id: 1, cat: "upper", short: "Push", name: "Push · Chest / Shoulders / Triceps",
     groups: [
-      {
-        why: "Squat is the main quad/glute lift; the curl hits hamstrings while your quads recover.",
-        items: [
-          { ex: "squat", reps: "6\u201310", sets: 3 },
-          { ex: "hamCurl", reps: "10\u201315", sets: 3 }
-        ]
-      },
-      {
-        why: "RDL is the major posterior-chain lift. Calves don't interfere, so it's an efficient pairing.",
-        items: [
-          { ex: "rdl", reps: "8\u201312", sets: 3 },
-          { ex: "calfRaise", reps: "12\u201320", sets: 3 }
-        ]
-      },
-      {
-        why: "Accessory hip work \u2014 useful, deliberately lower priority.",
-        items: [
-          { ex: "hipAbd", reps: "12\u201320", sets: 3 },
-          { ex: "hipAdd", reps: "12\u201320", sets: 3 }
-        ]
-      }
+      { why: "Heaviest compound first, while you're freshest. Chest and front delts do the main work.", items: [{ ex: "inclinePress", reps: "6–10", sets: 3 }] },
+      { why: "Second press, aimed at shoulders, done before the delts get tired.", items: [{ ex: "shoulderPress", reps: "8–12", sets: 3 }] },
+      { why: "Chest isolation in the stretched position, after the heavy pressing.", items: [{ ex: "pecFly", reps: "10–15", sets: 3 }] },
+      { why: "Side delts barely fatigue from pressing, so they're still fresh — and they're a priority.", items: [{ ex: "lateralRaise", reps: "10–20", sets: 3 }] },
+      { why: "Triceps last: both presses already worked them, so isolation goes at the end.", items: [{ ex: "tricepsPushdown", reps: "10–15", sets: 3 }] }
     ]
   },
   {
-    id: 2,
-    short: "Upper A",
-    name: "Upper A \xB7 Chest Emphasis",
+    id: 2, cat: "upper", short: "Pull", name: "Pull · Back / Rear Delts / Biceps",
     groups: [
-      {
-        why: "Main chest/upper strength pairing \u2014 a push/pull superset so one side recovers while the other works.",
-        items: [
-          { ex: "inclinePress", reps: "6\u201310", sets: 3 },
-          { ex: "seatedRow", reps: "8\u201312", sets: 3 }
-        ]
-      },
-      {
-        why: "Vertical pull plus direct chest isolation \u2014 covers both pulling patterns.",
-        items: [
-          { ex: "latPulldown", reps: "8\u201312", sets: 3 },
-          { ex: "pecFly", reps: "10\u201315", sets: 3 }
-        ]
-      },
-      {
-        why: "Extra shoulder attention, with biceps trained after they're already warm from pulling.",
-        items: [
-          { ex: "lateralRaise", reps: "10\u201320", sets: 3 },
-          { ex: "bayesianCurl", reps: "10\u201315", sets: 3 }
-        ]
-      },
-      {
-        why: "Supplementary triceps work \u2014 pressing already trained them. Forearms optional.",
-        items: [
-          { ex: "tricepsPushdown", reps: "10\u201315", sets: 3 },
-          { ex: "forearmCurl", reps: "12\u201320", sets: 3 }
-        ]
-      }
+      { why: "Vertical pull first, while your lats and grip are fresh.", items: [{ ex: "latPulldown", reps: "8–12", sets: 3 }] },
+      { why: "Horizontal pull. A slow 3-second lowering makes lighter weights hard again.", items: [{ ex: "singleArmRow", reps: "8–12", sets: 3 }] },
+      { why: "Rear delts, light and high-rep. Done before curls so tired arms don't limit it.", items: [{ ex: "rearDeltFly", reps: "12–20", sets: 3 }] },
+      { why: "Biceps after all the pulling, trained in the stretched position.", items: [{ ex: "bayesianCurl", reps: "10–15", sets: 3 }] },
+      { why: "Hammer curls last: brachialis and forearms.", items: [{ ex: "hammerCurl", reps: "10–15", sets: 3 }] }
     ]
   },
   {
-    id: 3,
-    short: "Lower B",
-    name: "Lower B",
+    id: 3, cat: "upper", short: "Arms", name: "Arms & Delts · skippable",
     groups: [
-      {
-        why: "Same movement pattern as Day 1, more moderate rep range.",
-        items: [
-          { ex: "squat", reps: "8\u201312", sets: 3 },
-          { ex: "hamCurl", reps: "10\u201315", sets: 3 }
-        ]
-      },
-      {
-        why: "Same reasoning as Day 1 \u2014 posterior chain plus calves.",
-        items: [
-          { ex: "rdl", reps: "8\u201312", sets: 3 },
-          { ex: "calfRaise", reps: "12\u201320", sets: 3 }
-        ]
-      },
-      {
-        why: "Extra quad/glute volume without another heavy barbell-style lift.",
-        items: [{ ex: "kbSquat", reps: "8\u201315", sets: 3 }]
-      },
-      {
-        why: "Optional accessory hip volume.",
-        items: [
-          { ex: "hipAbd", reps: "12\u201320", sets: 2 },
-          { ex: "hipAdd", reps: "12\u201320", sets: 2 }
-        ]
-      }
+      { why: "Side delts first while fresh — your shoulder priority.", items: [{ ex: "lateralRaise", reps: "10–20", sets: 4 }] },
+      { why: "Long head of the triceps, stretched under load.", items: [{ ex: "overheadTri", reps: "10–15", sets: 3 }] },
+      { why: "Strict biceps work, elbow braced on your thigh.", items: [{ ex: "concCurl", reps: "8–15", sets: 3 }] },
+      { why: "Forearms last. They're grip-heavy, so doing them earlier would hurt everything else.", items: [{ ex: "wristCurl", reps: "12–20", sets: 3 }, { ex: "reverseCurl", reps: "10–15", sets: 2 }] }
     ]
   },
   {
-    id: 4,
-    short: "Upper B",
-    name: "Upper B \xB7 Shoulders/Chest",
+    id: 4, cat: "lower", short: "Legs", name: "Legs",
     groups: [
-      {
-        why: "Same lifts as Day 2, kept familiar so they're trackable \u2014 slightly higher reps.",
-        items: [
-          { ex: "inclinePress", reps: "8\u201312", sets: 3 },
-          { ex: "seatedRow", reps: "8\u201312", sets: 3 }
-        ]
-      },
-      {
-        why: "Same fundamental patterns, different training day.",
-        items: [
-          { ex: "latPulldown", reps: "8\u201312", sets: 3 },
-          { ex: "pecFly", reps: "10\u201315", sets: 3 }
-        ]
-      },
-      {
-        why: "More direct shoulder volume, plus a different biceps stimulus than Day 2.",
-        items: [
-          { ex: "lateralRaise", reps: "10\u201320", sets: 3 },
-          { ex: "preacherCurl", reps: "8\u201315", sets: 3 }
-        ]
-      },
-      {
-        why: "More direct triceps work after all the pressing.",
-        items: [{ ex: "tricepsPushdown", reps: "8\u201315", sets: 3 }]
-      }
+      { why: "Heaviest lift first, while you're freshest.", items: [{ ex: "squat", reps: "6–10", sets: 3 }] },
+      { why: "Hamstrings and glutes. The Smith keeps the bar path fixed, so form is safer. Go light and controlled.", items: [{ ex: "smithRdl", reps: "8–12", sets: 3 }] },
+      { why: "Single-leg quad and glute volume without another heavy barbell-style lift.", items: [{ ex: "kbSquat", reps: "8–12", sets: 2 }] },
+      { why: "Hamstring isolation after the compounds.", items: [{ ex: "hamCurl", reps: "10–15", sets: 3 }] },
+      { why: "Calves late, with a pause at the top of every rep.", items: [{ ex: "calfRaise", reps: "12–20", sets: 3 }] },
+      { why: "Low-priority accessory hip work, kept short and done last.", items: [{ ex: "hipAbd", reps: "12–20", sets: 2 }, { ex: "hipAdd", reps: "12–20", sets: 2 }] }
+    ]
+  },
+  {
+    id: 5, cat: "upper", short: "Upper", name: "Upper · Chest / Back / Delts",
+    groups: [
+      { why: "Same lift as Push day so it's easy to track, with higher reps.", items: [{ ex: "inclinePress", reps: "8–12", sets: 3 }] },
+      { why: "Rows go first today (pulldowns went first on Pull day) so each gets a turn fresh.", items: [{ ex: "singleArmRow", reps: "8–12", sets: 3 }] },
+      { why: "Vertical pull second.", items: [{ ex: "latPulldown", reps: "8–12", sets: 3 }] },
+      { why: "Chest isolation to finish the chest work for the week.", items: [{ ex: "pecFly", reps: "10–15", sets: 3 }] },
+      { why: "Third dose of side delts this week.", items: [{ ex: "lateralRaise", reps: "12–20", sets: 3 }] }
     ]
   }
 ];
+// EXERCISES and DAYS are the live programme. App reassigns them from saved
+// state on every render, so everything below can keep reading them directly.
+let EXERCISES = DEFAULT_EXERCISES;
+let DAYS = DEFAULT_DAYS;
+function defaultProgram() {
+  return JSON.parse(JSON.stringify({ exercises: DEFAULT_EXERCISES, days: DEFAULT_DAYS }));
+}
 const STORAGE_KEY = "iron-log-state-v1";
 function dayCategory(dayId) {
+  const d = DAYS.find((x) => x.id === dayId);
+  if (d && d.cat) return d.cat;
   return dayId === 1 || dayId === 3 ? "lower" : "upper";
+}
+function sessionCat(s) {
+  return s.cat ? s.cat : dayCategory(s.dayId);
 }
 function isoToDate(s) {
   return /* @__PURE__ */ new Date(s + "T00:00:00");
@@ -398,7 +366,7 @@ function Plate({ filled, weight, color, onClick, active }) {
   );
 }
 function ExerciseLog({ item, rows, onChangeRow, onAddSet, onRemoveSet, lastSession, focusIdx, setFocusIdx }) {
-  const meta = EXERCISES[item.ex];
+  const meta = EXERCISES[item.ex] || { name: "Unknown exercise", cat: "upper", tip: "" };
   const color = meta.cat === "lower" ? C.lower : C.upper;
   const lastSummary = lastSession ? lastSession.sets.map((s) => `${s.weight}\xD7${s.reps}`).join("  \xB7  ") : null;
   return /* @__PURE__ */ React.createElement("div", { style: { padding: "14px 0", borderTop: `1px solid ${C.border}` } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif", fontWeight: 600, fontSize: 15, color: C.text } }, meta.name, meta.optional && /* @__PURE__ */ React.createElement("span", { style: { color: C.textFaint, fontWeight: 400, fontSize: 12 } }, " \xB7 optional")), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace", fontSize: 11, color: C.textDim, marginTop: 1 } }, "target ", item.reps, " reps"))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: C.textFaint, fontStyle: "italic", marginBottom: 10, lineHeight: 1.4 } }, /* @__PURE__ */ React.createElement(Info, { size: 11, style: { display: "inline", marginRight: 4, verticalAlign: -1 } }), meta.tip), lastSummary && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: C.textDim, marginBottom: 8, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" } }, "last: ", lastSummary), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" } }, rows.map((r, i) => /* @__PURE__ */ React.createElement(
@@ -481,7 +449,7 @@ function ExerciseLog({ item, rows, onChangeRow, onAddSet, onRemoveSet, lastSessi
 }
 function TrainView({ logs, saveDay, suggestedDay }) {
   const [dayId, setDayId] = useState(suggestedDay);
-  const day = DAYS.find((d) => d.id === dayId);
+  const day = DAYS.find((d) => d.id === dayId) || DAYS[0];
   const [inputs, setInputs] = useState({});
   const [focus, setFocus] = useState({});
   const [saved, setSaved] = useState(false);
@@ -522,7 +490,7 @@ function TrainView({ logs, saveDay, suggestedDay }) {
   const anyFilled = Object.values(inputs).some(
     (rows) => rows.some((r) => r.weight !== "" && r.reps !== "")
   );
-  return /* @__PURE__ */ React.createElement("div", { style: { paddingBottom: 100 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, padding: "16px 16px 4px", overflowX: "auto" } }, DAYS.map((d) => {
+  return /* @__PURE__ */ React.createElement("div", { style: { paddingBottom: 100 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, padding: "16px 16px 4px", overflowX: "auto" } }, DAYS.map((d, di) => {
     const isActive = d.id === dayId;
     const isSuggested = d.id === suggestedDay;
     return /* @__PURE__ */ React.createElement(
@@ -546,7 +514,7 @@ function TrainView({ logs, saveDay, suggestedDay }) {
         }
       },
       "Day ",
-      d.id,
+      di + 1,
       " \xB7 ",
       d.short,
       isSuggested && /* @__PURE__ */ React.createElement(
@@ -741,7 +709,7 @@ function CalendarView({ sessions, rests, setRestDay }) {
       if (!d || !d.startsWith(monthPrefix)) return;
       const s = sessionByDate[d];
       if (s) {
-        if (dayCategory(s.dayId) === "lower") lowerCount += 1;
+        if (sessionCat(s) === "lower") lowerCount += 1;
         else upperCount += 1;
       } else if (restSet.has(d)) restCount += 1;
     });
@@ -769,7 +737,7 @@ function CalendarView({ sessions, rests, setRestDay }) {
     const isRest = restSet.has(d);
     const isToday = d === today;
     const isFuture = d > today;
-    const cat = session ? dayCategory(session.dayId) : null;
+    const cat = session ? sessionCat(session) : null;
     const dotColor = cat === "lower" ? C.lower : cat === "upper" ? C.upper : null;
     return /* @__PURE__ */ React.createElement(
       "button",
@@ -816,6 +784,251 @@ function StatCard({ label, value, color }) {
     /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace", fontWeight: 700, fontSize: 17, color, marginTop: 2 } }, value)
   );
 }
+const h = React.createElement;
+const MONO = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+const SANS = "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif";
+const fieldStyle = { width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: SANS, fontSize: 14, outline: "none" };
+const cardStyle = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, marginTop: 12 };
+const labelStyle = { fontSize: 10.5, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 };
+function SmallBtn({ onClick, children, color, disabled }) {
+  return h("button", { onClick, disabled, style: { background: "none", border: `1px solid ${C.border}`, borderRadius: 8, color: color || C.textDim, padding: "6px 9px", fontSize: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, opacity: disabled ? 0.35 : 1, flexShrink: 0 } }, children);
+}
+function Field({ label, children }) {
+  return h("div", { style: { marginTop: 10 } }, h("div", { style: labelStyle }, label), children);
+}
+function CatToggle({ value, onChange }) {
+  return h("div", { style: { display: "flex", gap: 6 } }, ["lower", "upper"].map((c) => {
+    const active = value === c;
+    const col = c === "lower" ? C.lower : C.upper;
+    return h("button", { key: c, onClick: () => onChange(c), style: { flex: 1, padding: "8px 0", borderRadius: 8, border: active ? `1px solid ${col}` : `1px solid ${C.border}`, background: active ? `${col}22` : C.surfaceAlt, color: active ? col : C.textDim, fontSize: 12.5, textTransform: "capitalize" } }, c);
+  }));
+}
+function PageHeader({ title, sub, onBack }) {
+  return h(
+    "div",
+    { style: { padding: "16px 16px 4px" } },
+    onBack && h("button", { onClick: onBack, style: { background: "none", border: "none", color: C.textDim, display: "flex", alignItems: "center", gap: 2, padding: 0, marginBottom: 8, fontSize: 13 } }, h(ChevronLeft, { size: 16 }), "Back"),
+    h("h2", { style: { fontFamily: SANS, fontWeight: 600, fontSize: 22, color: C.text, textTransform: "uppercase", margin: 0 } }, title),
+    sub && h("div", { style: { color: C.textDim, fontSize: 12, marginTop: 4, lineHeight: 1.4 } }, sub)
+  );
+}
+function PlanView({ program, saveProgram, logs }) {
+  const [mode, setMode] = useState("days");
+  const [dayId, setDayId] = useState(null);
+  const update = (fn) => {
+    const next = JSON.parse(JSON.stringify(program));
+    fn(next);
+    saveProgram(next);
+  };
+  const move = (arr, i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= arr.length) return;
+    const t = arr[i];
+    arr[i] = arr[j];
+    arr[j] = t;
+  };
+  const nextDayId = () => Math.max(0, ...program.days.map((d) => d.id)) + 1;
+  const exUsed = (id) => program.days.some((d) => d.groups.some((g) => g.items.some((it) => it.ex === id)));
+  const exHasLogs = (id) => (logs[id] || []).length > 0;
+  const newExerciseId = () => "x" + Date.now().toString(36) + Math.floor(Math.random() * 1e3).toString(36);
+  const day = mode === "day" ? program.days.find((d) => d.id === dayId) : null;
+  const view = mode === "day" && !day ? "days" : mode;
+  const btnPrimary = { width: "100%", padding: "13px 0", borderRadius: 12, border: "none", background: C.gold, color: "#14161A", fontFamily: SANS, fontSize: 14, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 14 };
+  const btnGhost = { width: "100%", padding: "12px 0", borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.textDim, fontFamily: SANS, fontSize: 13.5, fontWeight: 600, marginTop: 10 };
+  if (view === "days") {
+    return h(
+      "div",
+      { style: { paddingBottom: 100 } },
+      h(PageHeader, { title: "Plan", sub: "Add, reorder and edit your training days and exercises. Your logged history is never touched by edits here." }),
+      h(
+        "div",
+        { style: { padding: "0 16px" } },
+        program.days.map((d, i) => {
+          const col = d.cat === "lower" ? C.lower : C.upper;
+          const count = d.groups.reduce((n, g) => n + g.items.length, 0);
+          return h(
+            "div",
+            { key: d.id, style: { ...cardStyle, marginTop: 10 } },
+            h(
+              "div",
+              { style: { display: "flex", alignItems: "center", gap: 10 } },
+              h("span", { style: { width: 8, height: 8, borderRadius: "50%", background: col, flexShrink: 0 } }),
+              h(
+                "div",
+                { style: { flex: 1, minWidth: 0 } },
+                h("div", { style: { color: C.text, fontWeight: 600, fontSize: 14.5 } }, `Day ${i + 1} \u00B7 ${d.name}`),
+                h("div", { style: { color: C.textFaint, fontSize: 11.5, marginTop: 2 } }, `${count} exercise${count === 1 ? "" : "s"} \u00B7 ${d.cat}`)
+              )
+            ),
+            h(
+              "div",
+              { style: { display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" } },
+              h(SmallBtn, { onClick: () => { setDayId(d.id); setMode("day"); }, color: C.gold }, "Edit"),
+              h(SmallBtn, { onClick: () => update((p) => {
+                const c = JSON.parse(JSON.stringify(d));
+                c.id = nextDayId();
+                c.name = d.name + " (copy)";
+                c.short = d.short + " 2";
+                p.days.splice(i + 1, 0, c);
+              }) }, "Copy"),
+              h(SmallBtn, { onClick: () => update((p) => move(p.days, i, -1)), disabled: i === 0 }, h(ChevronUp, { size: 13 })),
+              h(SmallBtn, { onClick: () => update((p) => move(p.days, i, 1)), disabled: i === program.days.length - 1 }, h(ChevronDown, { size: 13 }))
+            )
+          );
+        }),
+        h("button", { onClick: () => {
+          const id = nextDayId();
+          update((p) => {
+            p.days.push({ id, cat: "upper", short: "New day", name: "New day", groups: [{ why: "", items: [] }] });
+          });
+          setDayId(id);
+          setMode("day");
+        }, style: btnPrimary }, h(Plus, { size: 15 }), "Add a new day"),
+        h("button", { onClick: () => setMode("library"), style: btnGhost }, "Exercise library"),
+        h("button", { onClick: () => {
+          if (window.confirm("Reset to the default 5-day plan? Your logged history is kept.")) {
+            const fresh = defaultProgram();
+            Object.keys(program.exercises).forEach((id) => {
+              if (!fresh.exercises[id] && exHasLogs(id)) fresh.exercises[id] = program.exercises[id];
+            });
+            saveProgram(fresh);
+          }
+        }, style: { ...btnGhost, border: "none", background: "none", color: C.textFaint, fontSize: 12, fontWeight: 400 } }, "Reset to default plan")
+      )
+    );
+  }
+  if (view === "library") {
+    const ids = Object.keys(program.exercises);
+    return h(
+      "div",
+      { style: { paddingBottom: 100 } },
+      h(PageHeader, { title: "Exercises", sub: "Every exercise you can drop into a day. Renaming keeps its history.", onBack: () => setMode("days") }),
+      h(
+        "div",
+        { style: { padding: "0 16px" } },
+        ids.map((id) => {
+          const ex = program.exercises[id];
+          const patch = (fn) => update((p) => fn(p.exercises[id]));
+          const locked = exUsed(id) || exHasLogs(id);
+          return h(
+            "div",
+            { key: id, style: cardStyle },
+            h("input", { type: "text", value: ex.name, onChange: (e) => patch((x) => { x.name = e.target.value; }), style: { ...fieldStyle, fontWeight: 600 } }),
+            h(Field, { label: "Muscle group" }, h(CatToggle, { value: ex.cat, onChange: (v) => patch((x) => { x.cat = v; }) })),
+            h(Field, { label: "Cue / tip" }, h("input", { type: "text", value: ex.tip || "", placeholder: "e.g. 1\u20133 reps in reserve", onChange: (e) => patch((x) => { x.tip = e.target.value; }), style: fieldStyle })),
+            h(
+              "div",
+              { style: { display: "flex", gap: 8, marginTop: 10, alignItems: "center" } },
+              h(SmallBtn, { onClick: () => patch((x) => { x.optional = !x.optional; }), color: ex.optional ? C.gold : C.textDim }, ex.optional ? "Optional \u2713" : "Mark optional"),
+              h("div", { style: { flex: 1 } }),
+              locked ? h("span", { style: { fontSize: 11, color: C.textFaint } }, exUsed(id) ? "in your plan" : "has history") : h(SmallBtn, { onClick: () => { if (window.confirm(`Delete "${ex.name}"?`)) update((p) => { delete p.exercises[id]; }); }, color: C.lower }, h(Trash, { size: 13 }), "Delete")
+            )
+          );
+        }),
+        h("button", { onClick: () => update((p) => { p.exercises[newExerciseId()] = { name: "New exercise", cat: "upper", tip: "" }; }), style: btnPrimary }, h(Plus, { size: 15 }), "Add exercise")
+      )
+    );
+  }
+  const dayPatch = (fn) => update((p) => fn(p.days.find((d) => d.id === dayId)));
+  const exIds = Object.keys(program.exercises);
+  const exOptions = () => ["lower", "upper"].map((cat) => h(
+    "optgroup",
+    { key: cat, label: cat === "lower" ? "Lower body" : "Upper body" },
+    exIds.filter((id) => program.exercises[id].cat === cat).map((id) => h("option", { key: id, value: id }, program.exercises[id].name))
+  ));
+  const promptNewExercise = () => {
+    const name = window.prompt("Name of the new exercise?");
+    if (!name || !name.trim()) return null;
+    return { id: newExerciseId(), name: name.trim() };
+  };
+  const pickExercise = (gi, ii, value) => {
+    if (value !== "__new") {
+      dayPatch((d) => { d.groups[gi].items[ii].ex = value; });
+      return;
+    }
+    const created = promptNewExercise();
+    if (!created) return;
+    update((p) => {
+      const dd = p.days.find((x) => x.id === dayId);
+      p.exercises[created.id] = { name: created.name, cat: dd.cat, tip: "" };
+      dd.groups[gi].items[ii].ex = created.id;
+    });
+  };
+  const addItem = (gi) => {
+    let exId = exIds.find((id) => program.exercises[id].cat === day.cat) || exIds[0];
+    if (!exId) {
+      const created = promptNewExercise();
+      if (!created) return;
+      update((p) => {
+        const dd = p.days.find((x) => x.id === dayId);
+        p.exercises[created.id] = { name: created.name, cat: dd.cat, tip: "" };
+        dd.groups[gi].items.push({ ex: created.id, reps: "8\u201312", sets: 3 });
+      });
+      return;
+    }
+    dayPatch((d) => { d.groups[gi].items.push({ ex: exId, reps: "8\u201312", sets: 3 }); });
+  };
+  return h(
+    "div",
+    { style: { paddingBottom: 100 } },
+    h(PageHeader, { title: "Edit day", sub: "Changes save automatically.", onBack: () => setMode("days") }),
+    h(
+      "div",
+      { style: { padding: "0 16px" } },
+      h(
+        "div",
+        { style: cardStyle },
+        h(Field, { label: "Day name" }, h("input", { type: "text", value: day.name, onChange: (e) => dayPatch((d) => { d.name = e.target.value; }), style: fieldStyle })),
+        h(Field, { label: "Short label (tab)" }, h("input", { type: "text", value: day.short, onChange: (e) => dayPatch((d) => { d.short = e.target.value; }), style: fieldStyle })),
+        h(Field, { label: "Type (sets the colour)" }, h(CatToggle, { value: day.cat, onChange: (v) => dayPatch((d) => { d.cat = v; }) }))
+      ),
+      day.groups.map((g, gi) => h(
+        "div",
+        { key: gi, style: cardStyle },
+        h(
+          "div",
+          { style: { display: "flex", alignItems: "center", gap: 6 } },
+          h("div", { style: { flex: 1, color: C.textDim, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4 } }, `Group ${gi + 1}`),
+          h(SmallBtn, { onClick: () => update((p) => move(p.days.find((d) => d.id === dayId).groups, gi, -1)), disabled: gi === 0 }, h(ChevronUp, { size: 13 })),
+          h(SmallBtn, { onClick: () => update((p) => move(p.days.find((d) => d.id === dayId).groups, gi, 1)), disabled: gi === day.groups.length - 1 }, h(ChevronDown, { size: 13 })),
+          h(SmallBtn, { onClick: () => dayPatch((d) => { d.groups.splice(gi, 1); }), color: C.lower }, h(Trash, { size: 13 }))
+        ),
+        h("input", { type: "text", value: g.why, placeholder: "Note: why this pairing? (optional)", onChange: (e) => dayPatch((d) => { d.groups[gi].why = e.target.value; }), style: { ...fieldStyle, marginTop: 10, fontSize: 12.5 } }),
+        g.items.map((it, ii) => h(
+          "div",
+          { key: ii, style: { background: C.surfaceAlt, borderRadius: 10, padding: 10, marginTop: 8 } },
+          h(
+            "div",
+            { style: { display: "flex", gap: 5, alignItems: "center" } },
+            h("select", { value: it.ex, onChange: (e) => pickExercise(gi, ii, e.target.value), style: { ...fieldStyle, background: C.surface, colorScheme: "dark", flex: 1, minWidth: 0 } }, exOptions(), h("option", { value: "__new" }, "+ New exercise\u2026")),
+            h(SmallBtn, { onClick: () => dayPatch((d) => move(d.groups[gi].items, ii, -1)), disabled: ii === 0 }, h(ChevronUp, { size: 12 })),
+            h(SmallBtn, { onClick: () => dayPatch((d) => move(d.groups[gi].items, ii, 1)), disabled: ii === g.items.length - 1 }, h(ChevronDown, { size: 12 })),
+            h(SmallBtn, { onClick: () => dayPatch((d) => { d.groups[gi].items.splice(ii, 1); }), color: C.lower }, h(Trash, { size: 12 }))
+          ),
+          h(
+            "div",
+            { style: { display: "flex", alignItems: "center", gap: 8, marginTop: 8 } },
+            h("span", { style: { fontSize: 11, color: C.textFaint } }, "Reps"),
+            h("input", { type: "text", value: it.reps, placeholder: "8\u201312", onChange: (e) => dayPatch((d) => { d.groups[gi].items[ii].reps = e.target.value; }), style: { ...fieldStyle, width: 84, fontFamily: MONO, background: C.surface } }),
+            h("span", { style: { fontSize: 11, color: C.textFaint, marginLeft: 6 } }, "Sets"),
+            h(SmallBtn, { onClick: () => dayPatch((d) => { const x = d.groups[gi].items[ii]; x.sets = Math.max(1, (Number(x.sets) || 1) - 1); }) }, h(Minus, { size: 12 })),
+            h("span", { style: { fontFamily: MONO, color: C.text, minWidth: 14, textAlign: "center", fontSize: 14 } }, it.sets),
+            h(SmallBtn, { onClick: () => dayPatch((d) => { const x = d.groups[gi].items[ii]; x.sets = Math.min(10, (Number(x.sets) || 1) + 1); }) }, h(Plus, { size: 12 }))
+          )
+        )),
+        h("button", { onClick: () => addItem(gi), style: { ...btnGhost, marginTop: 10, padding: "9px 0", fontSize: 12.5 } }, "+ Add exercise to this group")
+      )),
+      h("button", { onClick: () => dayPatch((d) => { d.groups.push({ why: "", items: [] }); }), style: btnGhost }, "+ Add a group (pairing / superset)"),
+      h("button", { onClick: () => {
+        if (program.days.length <= 1) { window.alert("You need at least one day in the plan."); return; }
+        if (window.confirm(`Delete "${day.name}"? Your logged history stays safe.`)) {
+          update((p) => { p.days = p.days.filter((d) => d.id !== dayId); });
+          setMode("days");
+        }
+      }, style: { ...btnGhost, color: C.lower, border: `1px solid ${C.lowerDim}`, marginTop: 18 } }, "Delete this day")
+    )
+  );
+}
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -840,14 +1053,18 @@ function App() {
   const [meta, setMeta] = useState({ lastCompletedDay: 0 });
   const [sessions, setSessions] = useState([]);
   const [rests, setRests] = useState([]);
+  const [program, setProgram] = useState(() => defaultProgram());
   const [error, setError] = useState(null);
   useEffect(() => {
     const state = loadState();
     if (state) {
       setLogs(state.logs || {});
       setMeta(state.meta || { lastCompletedDay: 0 });
-      setSessions(state.sessions || []);
+      setSessions((state.sessions || []).map((s) => s.cat ? s : { ...s, cat: s.dayId === 1 || s.dayId === 3 ? "lower" : "upper" }));
       setRests(state.rests || []);
+      if (state.program && state.program.exercises && Array.isArray(state.program.days) && state.program.days.length) {
+        setProgram(state.program);
+      }
     } else {
       setLogs({});
     }
@@ -864,25 +1081,33 @@ function App() {
         newLogs[ex] = history;
       });
       const newMeta = { lastCompletedDay: dayId, lastCompletedDate: todayStr() };
-      const session = { date: todayStr(), dayId, timestamp: Date.now() };
+      const session = { date: todayStr(), dayId, cat: dayCategory(dayId), timestamp: Date.now() };
       const newSessions = [...sessions.filter((s) => s.date !== todayStr()), session].sort((a, b) => a.date > b.date ? 1 : -1);
       const newRests = rests.filter((d) => d !== todayStr());
       setLogs(newLogs);
       setMeta(newMeta);
       setSessions(newSessions);
       setRests(newRests);
-      const ok = saveState({ logs: newLogs, meta: newMeta, sessions: newSessions, rests: newRests });
+      const ok = saveState({ logs: newLogs, meta: newMeta, sessions: newSessions, rests: newRests, program });
       setError(ok ? null : "Couldn't save to this device's storage. If you're in Private Browsing, turn it off so your data can stick.");
     },
-    [logs, sessions, rests]
+    [logs, sessions, rests, program]
   );
   const setRestDay = useCallback((date, shouldRest) => {
     const next = shouldRest ? Array.from(/* @__PURE__ */ new Set([...rests, date])).sort() : rests.filter((d) => d !== date);
     setRests(next);
-    const ok = saveState({ logs, meta, sessions, rests: next });
+    const ok = saveState({ logs, meta, sessions, rests: next, program });
+    setError(ok ? null : "Couldn't save to this device's storage. If you're in Private Browsing, turn it off so your data can stick.");
+  }, [logs, meta, sessions, rests, program]);
+  const saveProgram = useCallback((next) => {
+    setProgram(next);
+    const ok = saveState({ logs, meta, sessions, rests, program: next });
     setError(ok ? null : "Couldn't save to this device's storage. If you're in Private Browsing, turn it off so your data can stick.");
   }, [logs, meta, sessions, rests]);
-  const suggestedDay = meta.lastCompletedDay ? meta.lastCompletedDay % 4 + 1 : 1;
+  EXERCISES = program.exercises;
+  DAYS = program.days;
+  const lastIdx = DAYS.findIndex((d) => d.id === meta.lastCompletedDay);
+  const suggestedDay = DAYS[(lastIdx + 1) % DAYS.length].id;
   if (logs === null) {
     return /* @__PURE__ */ React.createElement("div", { style: { background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" } }, /* @__PURE__ */ React.createElement("style", null, FONTS), /* @__PURE__ */ React.createElement(Dumbbell, { size: 26, color: C.textFaint }));
   }
@@ -925,7 +1150,7 @@ function App() {
       "Iron Log"
     )),
     meta.lastCompletedDate === todayStr() && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4, color: "#7CB88F", fontSize: 11.5 } }, /* @__PURE__ */ React.createElement(Check, { size: 13 }), " logged today")
-  ), error && /* @__PURE__ */ React.createElement("div", { style: { margin: "0 16px 8px", padding: "8px 12px", background: `${C.lower}1A`, border: `1px solid ${C.lower}55`, borderRadius: 8, color: C.lower, fontSize: 12 } }, error), view === "train" ? /* @__PURE__ */ React.createElement(TrainView, { logs, saveDay, suggestedDay }) : view === "progress" ? /* @__PURE__ */ React.createElement(ProgressView, { logs, sessions }) : /* @__PURE__ */ React.createElement(CalendarView, { sessions, rests, setRestDay }), /* @__PURE__ */ React.createElement(
+  ), error && /* @__PURE__ */ React.createElement("div", { style: { margin: "0 16px 8px", padding: "8px 12px", background: `${C.lower}1A`, border: `1px solid ${C.lower}55`, borderRadius: 8, color: C.lower, fontSize: 12 } }, error), view === "train" ? /* @__PURE__ */ React.createElement(TrainView, { logs, saveDay, suggestedDay }) : view === "progress" ? /* @__PURE__ */ React.createElement(ProgressView, { logs, sessions }) : view === "calendar" ? /* @__PURE__ */ React.createElement(CalendarView, { sessions, rests, setRestDay }) : /* @__PURE__ */ React.createElement(PlanView, { program, saveProgram, logs }), /* @__PURE__ */ React.createElement(
     "div",
     {
       style: {
@@ -943,7 +1168,8 @@ function App() {
     [
       { id: "train", label: "Train", icon: Dumbbell },
       { id: "progress", label: "Progress", icon: TrendingUp },
-      { id: "calendar", label: "Calendar", icon: CalendarDays }
+      { id: "calendar", label: "Calendar", icon: CalendarDays },
+      { id: "plan", label: "Plan", icon: ClipboardList }
     ].map((t) => {
       const Icon = t.icon;
       const active = view === t.id;
